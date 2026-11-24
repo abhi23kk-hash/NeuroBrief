@@ -1,0 +1,95 @@
+﻿
+name: NeuroBrief AI - Five Daily Intelligence Tasks
+
+on:
+  schedule:
+    # 8:00 AM IST
+    - cron: '30 2 * * *'
+
+    # 10:00 AM IST
+    - cron: '30 4 * * *'
+
+    # 12:00 PM IST
+    - cron: '30 6 * * *'
+
+    # 3:00 PM IST
+    - cron: '30 9 * * *'
+
+    # 7:00 PM IST
+    - cron: '30 13 * * *'
+
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "Select an intelligence task"
+        required: true
+        type: choice
+        default: morning
+        options:
+          - morning
+          - technology
+          - models
+          - industry
+          - evening
+
+permissions:
+  contents: write
+
+jobs:
+  intelligence:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Select intelligence task
+        id: task
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+          MANUAL_TASK: ${{ inputs.task }}
+        run: |
+          if [ -n "$MANUAL_TASK" ]; then
+            TASK="$MANUAL_TASK"
+          else
+            case "$SCHEDULE" in
+              "30 2 * * *") TASK="morning" ;;
+              "30 4 * * *") TASK="technology" ;;
+              "30 6 * * *") TASK="models" ;;
+              "30 9 * * *") TASK="industry" ;;
+              "30 13 * * *") TASK="evening" ;;
+              *) echo "Unknown schedule"; exit 1 ;;
+            esac
+          fi
+
+          echo "task=$TASK" >> "$GITHUB_OUTPUT"
+          echo "Selected task: $TASK"
+
+      - name: Generate intelligence report
+        run: python neurobrief.py --task "${{ steps.task.outputs.task }}"
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Commit report
+        run: |
+          git config user.name "Abhishek K"
+          git config user.email "abhi23kk@gmail.com"
+
+          git add reports/
+
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish NeuroBrief ${{ steps.task.outputs.task }} intelligence report"
+            git push
+          else
+            echo "No new report changes to commit."
+          fi
